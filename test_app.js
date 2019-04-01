@@ -46,23 +46,7 @@ app.listen(5000, '0.0.0.0', function () {
 });
 app.get('/',function(req,res){
 	res.sendFile(__dirname+'/audio_static_source/index.html');
-})
-//  function convertCMD(convert,res){
-//     let convertCommand = "ffmpeg -i " + convert.inputPath + " -ar " + convert.sampleRate + " -ac " + convert.channelCount +  "  " + convert.outputPath;
-//     let getAudioHeader = "sox -V " + convert.outputPath + " -n"
-//     console.log(convertCommand, getAudioHeader);
-//     try {
-//         exec(convertCommand).then(async function (data) {
-//             console.log(data.stdout.length)
-//             const { stdout, stderr} = await exec(getAudioHeader);
-//             // ↵
-//             res.send(JSON.stringify({ stdout: stdout.split('\n'), stderr: stderr.split('\n') }));
-//         })    
-//     } catch (error) {
-//         console.log('错误')
-//     }
-    
-// }
+});
 async function convertCMD(req,isMulitple,index){
     let filePath = isMulitple?req.files[index].path:req.file.path;
     let outputName = filePath.substring(0, filePath.lastIndexOf('.') + 1) + req.body.format.split('/')[1];
@@ -83,9 +67,11 @@ async function convertCMD(req,isMulitple,index){
         const { stdout, stderr} = await exec(getAudioHeader);
         if(!isMulitple){
             console.log(stdout,stderr)
+            await endpointDetection(convert.outputPath,filePath.substring(filePath.lastIndexOf('/'),filePath.lastIndexOf('.')),convert)
             return JSON.stringify({ stdout: stdout.split('\n'), stderr: stderr.split('\n') })
         }else{
             result[filePath.substring(filePath.lastIndexOf('/'),filePath.length)] = { stdout: stdout.split('\n'), stderr: stderr.split('\n') };
+            await endpointDetection(convert.outputPath,filePath.substring(filePath.lastIndexOf('/'),filePath.lastIndexOf('.')),convert)
             return JSON.stringify(result);
         }
            
@@ -94,6 +80,42 @@ async function convertCMD(req,isMulitple,index){
         console.log('错误'+error);
     }
     
+}
+async function endpointDetection(path,name,convert){
+    let command = 'auditok -e 60 -i '+path+' -m 20 -n 2 --printf "{start}~{end}" --time-format "%h:%m:%s"'
+    const pointTimes = await exec(command);
+    let formatTimes = pointTimes.stdout.split('\n');
+    try {
+        fs.accessSync(name,fs.F_OK)
+    } catch (error) {
+        await exec('mkdir ./'+name+'_endpoint');
+        formatTimes.map((item,index)=>{
+            let start = item.split('~')[0], end = item.split('~')[1];
+            
+            if(start&&end){
+                let pre = parseInt(start.substring(6,8)), next = parseInt(end.substring(6,8)),second=0;
+                console.log(pre,next);
+                if(pre>next){
+                    second = next+60 - pre;
+                }else{
+                    second = next-pre;
+                }
+                if (second === 0){
+                    return;
+                }
+                if(second<10){
+                    second = '0'+second
+                }
+                let cuttingCommand = 'ffmpeg -ss '+start+' -t 00:00:'+second+' -i '+path+' -ar '+convert.sampleRate+' -ac '+convert.channelCount+' .'+name+'_endpoint/'+index+'.wav';
+                console.log(cuttingCommand);
+                exec(cuttingCommand);
+            }
+            
+        })
+    }
+    // formatTimes.map(item=>{
+        
+    // })
 }
 app.post('/uploadConvert', upload.single('file'), async function (req, res) {
     const result = await convertCMD(req,false);
