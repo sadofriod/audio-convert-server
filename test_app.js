@@ -123,14 +123,16 @@ app.post('/uploadConvert', upload.single('file'), async function (req, res) {
 });
 app.post('/signIn', urlencodeParser, async function (req, res) {
     let u = req.body;
+    const cookieOption = {
+        'expire': 86400000 + Date.now()
+    }
     console.log(u)
     try{
         const result = await query('select root,user_id,user_name,account from user where account = "' + u.account + '" and password = "' + u.password + '"');
-        console.log(result);
-        res.cookie('username',result[0].user_name)
-        res.cookie('user_id',result[0].user_id)
-        res.cookie('account',result[0].account)
-        res.cookie('root',result[0].root)
+        res.cookie('username',result[0].user_name,cookieOption)
+        res.cookie('user_id',result[0].user_id,cookieOption)
+        res.cookie('account',result[0].account,cookieOption)
+        res.cookie('root',result[0].root,cookieOption)
         res.send(JSON.stringify(result));
     }catch(e){
         console.log(e);
