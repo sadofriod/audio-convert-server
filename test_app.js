@@ -40,6 +40,7 @@ var allowCrossDomain = function (req, res, next) {
 app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.static(__dirname + '/audio_static_source'));
+app.use(express.static(__dirname));
 app.use(cookieParser());
 app.listen(5000, '0.0.0.0', function () {
     console.log('server start');
@@ -47,6 +48,15 @@ app.listen(5000, '0.0.0.0', function () {
 app.get('/', function (req, res) {
     res.sendFile(__dirname + '/audio_static_source/index.html');
 });
+function isDirExit(path){
+    try {
+        fs.accessSync(__dirname+path+ '_endpoint', fs.F_OK);
+        return true;
+    } catch (error) {
+        console.log(error)
+        return false;
+    }
+}
 async function convertCMD(req, isMulitple, index) {
     let filePath = isMulitple ? req.files[index].path : req.file.path;
     let outputName = filePath.substring(0, filePath.lastIndexOf('.') + 1) + req.body.format.split('/')[1];
@@ -60,14 +70,6 @@ async function convertCMD(req, isMulitple, index) {
         outputPath: outputName
     }
     let convert = Convert.Convert(param);
-    // const audioConvertStruct = {
-    //     audio_id: null,
-    //     berfore_convert_path: filePath,
-    //     after_convert_paht: outputPath,
-    //     user_id: req.cookies.user_id,
-    //     audio_name: filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')),
-    //     description: JSON.stringify(param)
-    // }
     console.log(req.cookies)
     let convertCommand = "ffmpeg -i " + convert.inputPath + " -ar " + convert.sampleRate + " -ac " + convert.channelCount + "  " + convert.outputPath;
     let getAudioHeader = "sox -V " + convert.outputPath + " -n";
@@ -75,15 +77,38 @@ async function convertCMD(req, isMulitple, index) {
     try {
         const convertInfo = await exec(convertCommand);
         const { stdout, stderr } = await exec(getAudioHeader);
-        // const dbQuery = await query('insert into audio set ?',audioConvertStruct);
-        // console.log(dbQuery);
+        let audioConvertStruct = {}, dbQuery = {};
+        let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))
+        console.log('cookie长度'+req.cookies.length);
+        if(req.cookies.length!==0){
+            audioConvertStruct = {
+                audio_id: null,
+                berfore_convert_path: filePath,
+                after_convert_path: convert.outputPath,
+                user_id: req.cookies.user_id,
+                audio_name: filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')),
+                descripiton: JSON.stringify(param)
+            }
+            try {
+                dbQuery = await query('insert into audio set ?',audioConvertStruct);
+                audioSplitSaveDirname = req.cookies.account + audioSplitSaveDirname;
+                console.log(dbQuery);                
+            } catch (error) {
+                console.log(error);
+                audioConvertStruct = {msg:'sql failur'};
+                dbQuery.insertId = -1;
+            }
+        }else{//当为游客时，音频存储
+            audioConvertStruct = param;
+            dbQuery.insertId = 0;
+            audioSplitSaveDirname = audioSplitSaveDirname +'_temp_'+Date.now();
+        }
         if (!isMulitple) {
-            console.log(stdout, stderr)
-            await endpointDetection(convert.outputPath, filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')), convert)
-            return JSON.stringify({ stdout: stdout.split('\n'), stderr: stderr.split('\n') })
+            await endpointDetection(convert.outputPath,audioSplitSaveDirname , convert,dbQuery.insertId);
+            return JSON.stringify(audioConvertStruct);
         } else {
-            result[filePath.substring(filePath.lastIndexOf('/'), filePath.length)] = { stdout: stdout.split('\n'), stderr: stderr.split('\n') };
-            await endpointDetection(convert.outputPath, filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')), convert)
+            result[filePath.substring(filePath.lastIndexOf('/'), filePath.length)] = audioConvertStruct;
+            await endpointDetection(convert.outputPath, audioSplitSaveDirname, convert,dbQuery.insertId);
             return JSON.stringify(result);
         }
 
@@ -93,20 +118,32 @@ async function convertCMD(req, isMulitple, index) {
     }
 
 }
-async function endpointDetection(path, name, convert) {
+async function endpointDetection(path, name, convert, audio_id) {
     let command = 'auditok -e 60 -i ' + path + ' -m 20 -n 2 --printf "{start}~{end}" --time-format "%h:%m:%s"'
     const pointTimes = await exec(command);
     let formatTimes = pointTimes.stdout.split('\n');
+
+    if(audio_id === -1){
+        return;
+    }
     try {
         fs.accessSync(name, fs.F_OK)
     } catch (error) {
         await exec('mkdir ./' + name + '_endpoint');
         formatTimes.map((item, index) => {
             let start = item.split('~')[0], end = item.split('~')[1];
-
+            const struct = {
+                audio_split_id:null,
+                audio_id: audio_id,
+                path: name + '_endpoint/' + start+'add'+end + '.wav'
+            }
+            try {
+                query('insert into audio_split set ?',struct)
+            } catch (error) {
+                console.log(error)
+            }
             if (start && end) {
                 let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
-                console.log(pre, next);
                 if (pre > next) {
                     second = next + 60 - pre;
                 } else {
@@ -118,8 +155,7 @@ async function endpointDetection(path, name, convert) {
                 if (second < 10) {
                     second = '0' + second
                 }
-                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' .' + name + '_endpoint/' + index + '.wav';
-                console.log(cuttingCommand);
+                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' .' + name + '_endpoint/' + start+'add'+end + '.wav';
                 exec(cuttingCommand);
             }
 
@@ -164,4 +200,47 @@ app.post('/mulitpleAudioConvert', upload.array('files', 300), async function (re
             }
         }
     };
-})
+});
+app.post('/manualCut',urlencodeParser,async function(req,res){
+    
+    try {
+        let audioDescription = await query('select  descripiton,after_convert_path,audio_name from audio where audio_id = '+req.body.audioId); 
+        audioDescription = audioDescription[0]
+        let convert = JSON.parse(audioDescription.descripiton),flag = isDirExit(audioDescription.audio_name);
+        if(!flag){
+            await exec('mkdir ./' + audioDescription.audio_name + '_endpoint');
+        }
+        let start = req.body.start, end = req.body.end;
+        const struct = {
+            audio_split_id:null,
+            audio_id: req.body.audioId,
+            path: audioDescription.audio_name + '_endpoint/' + req.body.start+'add'+req.body.end + '.wav'
+        }
+        try {
+            query('insert into audio_split set ?',struct);
+        } catch (error) {
+            console.log(error)
+        }
+        if (start && end) {
+            let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
+           if (pre > next) {
+                second = next + 60 - pre;
+            } else {
+              second = next - pre;
+            }
+            if (second === 0) {
+                return;
+            }
+            if (second < 10) {
+                second = '0' + second
+            }
+            let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + audioDescription.after_convert_path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' .' + audioDescription.audio_name + '_endpoint/' + req.body.start+'add'+req.body.end + '.wav';
+            exec(cuttingCommand);
+        }
+        res.send('cutted');
+    } catch (error) {
+        console.log(error);
+        res.send('error')
+    }
+
+});
