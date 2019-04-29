@@ -85,7 +85,7 @@ app.post('/deleteCases',urlencodeParser,async function(req,res){
         res.send(error);
     }
 });
-app.post('/updateCases', urlencodeParser,async,function(req,res){
+app.post('/updateCases', urlencodeParser,async function(req,res){
     try {
         let result = await query('update case_data set ? where case_id='+req.body.case_id,req.body);
         res.send(result);
