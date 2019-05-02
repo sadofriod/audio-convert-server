@@ -75,7 +75,7 @@ async function convertCMD(req, isMulitple, index) {
         const convertInfo = await exec(convertCommand);
         const { stdout, stderr } = await exec(getAudioHeader);
         let audioConvertStruct = {}, dbQuery = {};
-        let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))
+        let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))//Audio cutting result file dirname
         if(req.cookies.length){
             audioConvertStruct = {
                 audio_id: null,
