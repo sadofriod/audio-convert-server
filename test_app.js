@@ -48,9 +48,9 @@ app.listen(5000, '0.0.0.0', function () {
 app.get('/', function (req, res) {
     res.sendFile(__dirname + '/audio_static_source/index.html');
 });
-function isDirExit(path){
+function isDirExit(path) {
     try {
-        fs.accessSync(__dirname+path+ '_endpoint', fs.F_OK);
+        fs.accessSync(__dirname + path + '_endpoint', fs.F_OK);
         return true;
     } catch (error) {
         console.log(error)
@@ -76,7 +76,8 @@ async function convertCMD(req, isMulitple, index) {
         const { stdout, stderr } = await exec(getAudioHeader);
         let audioConvertStruct = {}, dbQuery = {};
         let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))//Audio cutting result file dirname
-        if(req.cookies.length){
+        if (req.cookies.length) {
+            console.log('user login')
             audioConvertStruct = {
                 audio_id: null,
                 berfore_convert_path: filePath,
@@ -86,25 +87,25 @@ async function convertCMD(req, isMulitple, index) {
                 descripiton: JSON.stringify(param)
             }
             try {
-                dbQuery = await query('insert into audio set ?',audioConvertStruct);
+                dbQuery = await query('insert into audio set ?', audioConvertStruct);
                 audioSplitSaveDirname = req.cookies.account + audioSplitSaveDirname;
-                console.log(dbQuery);                
+                console.log(dbQuery);
             } catch (error) {
                 console.log(error);
-                audioConvertStruct = {msg:'sql failur'};
+                audioConvertStruct = { msg: 'sql failur' };
                 dbQuery.insertId = -1;
             }
-        }else{//当为游客时，音频存储
+        } else {//当为游客时，音频存储
             audioConvertStruct = param;
             dbQuery.insertId = 0;
-            audioSplitSaveDirname = audioSplitSaveDirname +'_temp_'+Date.now();
+            audioSplitSaveDirname = audioSplitSaveDirname + '_temp_' + Date.now();
         }
         if (!isMulitple) {
-            await endpointDetection(convert.outputPath,audioSplitSaveDirname , convert,dbQuery.insertId);
+            await endpointDetection(convert.outputPath, audioSplitSaveDirname, convert, dbQuery.insertId);
             return JSON.stringify(audioConvertStruct);
         } else {
             result[filePath.substring(filePath.lastIndexOf('/'), filePath.length)] = audioConvertStruct;
-            await endpointDetection(convert.outputPath, audioSplitSaveDirname, convert,dbQuery.insertId);
+            await endpointDetection(convert.outputPath, audioSplitSaveDirname, convert, dbQuery.insertId);
             return JSON.stringify(result);
         }
 
@@ -119,42 +120,42 @@ async function endpointDetection(path, name, convert, audio_id) {
     const pointTimes = await exec(command);
     let formatTimes = pointTimes.stdout.split('\n');
     console.log(path, name, convert, audio_id)
-    if(audio_id === -1){
+    if (audio_id === -1) {
         return;
     }
-    if(!isDirExit(name)){
+    if (!isDirExit(name)) {
         await exec('mkdir ./' + name + '_endpoint');
     }
-        formatTimes.map((item, index) => {
-            let start = item.split('~')[0], end = item.split('~')[1];
-            const struct = {
-                audio_split_id:null,
-                audio_id: audio_id,
-                path: name + '_endpoint/' + start+'add'+end + '.wav'
+    formatTimes.map((item, index) => {
+        let start = item.split('~')[0], end = item.split('~')[1];
+        const struct = {
+            audio_split_id: null,
+            audio_id: audio_id,
+            path: name + '_endpoint/' + start + 'add' + end + '.wav'
+        }
+        try {
+            query('insert into audio_split set ?', struct)
+        } catch (error) {
+            console.log(error)
+        }
+        if (start && end) {
+            let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
+            if (pre > next) {
+                second = next + 60 - pre;
+            } else {
+                second = next - pre;
             }
-            try {
-                query('insert into audio_split set ?',struct)
-            } catch (error) {
-                console.log(error)
+            if (second === 0) {
+                return;
             }
-            if (start && end) {
-                let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
-                if (pre > next) {
-                    second = next + 60 - pre;
-                } else {
-                    second = next - pre;
-                }
-                if (second === 0) {
-                    return;
-                }
-                if (second < 10) {
-                    second = '0' + second
-                }
-                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname + name + '_endpoint/' + start+'add'+end + '.wav';
-                exec(cuttingCommand);
+            if (second < 10) {
+                second = '0' + second
             }
+            let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname + name + '_endpoint/' + start + 'add' + end + '.wav';
+            exec(cuttingCommand);
+        }
 
-        })
+    })
 }
 app.post('/uploadConvert', upload.single('file'), async function (req, res) {
     const result = await convertCMD(req, false);
@@ -192,32 +193,32 @@ app.post('/mulitpleAudioConvert', upload.array('files', 300), async function (re
         }
     };
 });
-app.post('/manualCut',urlencodeParser,async function(req,res){
-    
+app.post('/manualCut', urlencodeParser, async function (req, res) {
+
     try {
-        let audioDescription = await query('select  descripiton,after_convert_path,audio_name from audio where audio_id = '+req.body.audioId); 
+        let audioDescription = await query('select  descripiton,after_convert_path,audio_name from audio where audio_id = ' + req.body.audioId);
         audioDescription = audioDescription[0]
-        let convert = JSON.parse(audioDescription.descripiton),flag = isDirExit(audioDescription.audio_name);
-        if(!flag){
+        let convert = JSON.parse(audioDescription.descripiton), flag = isDirExit(audioDescription.audio_name);
+        if (!flag) {
             await exec('mkdir ./' + audioDescription.audio_name + '_endpoint');
         }
         let start = req.body.start, end = req.body.end;
         const struct = {
-            audio_split_id:null,
+            audio_split_id: null,
             audio_id: req.body.audioId,
-            path: audioDescription.audio_name + '_endpoint/' + req.body.start+'add'+req.body.end + '.wav'
+            path: audioDescription.audio_name + '_endpoint/' + req.body.start + 'add' + req.body.end + '.wav'
         }
         try {
-            query('insert into audio_split set ?',struct);
+            query('insert into audio_split set ?', struct);
         } catch (error) {
             console.log(error)
         }
         if (start && end) {
             let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
-           if (pre > next) {
+            if (pre > next) {
                 second = next + 60 - pre;
             } else {
-              second = next - pre;
+                second = next - pre;
             }
             if (second === 0) {
                 return;
@@ -225,7 +226,7 @@ app.post('/manualCut',urlencodeParser,async function(req,res){
             if (second < 10) {
                 second = '0' + second
             }
-            let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + audioDescription.after_convert_path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' +__dirname + audioDescription.audio_name + '_endpoint/' + req.body.start+'add'+req.body.end + '.wav';
+            let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + audioDescription.after_convert_path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname + audioDescription.audio_name + '_endpoint/' + req.body.start + 'add' + req.body.end + '.wav';
             exec(cuttingCommand);
         }
         res.send('cutted');
@@ -235,3 +236,17 @@ app.post('/manualCut',urlencodeParser,async function(req,res){
     }
 
 });
+app.post('/getAudioList', urlencodeParser, function (req, res) {
+    const result = {};
+    try {
+        const result = query('select * from audio');
+        res.json({
+            msg: 'success',
+            result: result
+        })
+    } catch (error) {
+        console.log(error);
+        res.send(error);
+    }
+
+})
