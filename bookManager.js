@@ -31,6 +31,7 @@ app.listen(5030, '0.0.0.0', function () {//服务器运行端口设置为5010
 });
 app.post('/signIn',urlencodeParser,async function(req,res){
     let e = req.body;
+console.log(e);
     try {
         let result = await query('select * from usertable where usernumber="'+e.usernumber+'" and password="'+e.password+'"');
         console.log(result);

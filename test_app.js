@@ -76,7 +76,9 @@ async function convertCMD(req, isMulitple, index) {
         const { stdout, stderr } = await exec(getAudioHeader);
         let audioConvertStruct = {}, dbQuery = {};
         let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))//Audio cutting result file dirname
-        if(req.cookies.length){
+            console.log(req.cookies,'root' in req.cookies)
+            if('root' in req.cookies){
+            console.log('user login')
             audioConvertStruct = {
                 audio_id: null,
                 berfore_convert_path: filePath,
@@ -123,7 +125,7 @@ async function endpointDetection(path, name, convert, audio_id) {
         return;
     }
     if(!isDirExit(name)){
-        await exec('mkdir ./' + name + '_endpoint');
+        await exec('mkdir -p ' + name + '_endpoint');
     }
         formatTimes.map((item, index) => {
             let start = item.split('~')[0], end = item.split('~')[1];
@@ -150,7 +152,7 @@ async function endpointDetection(path, name, convert, audio_id) {
                 if (second < 10) {
                     second = '0' + second
                 }
-                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname + name + '_endpoint/' + start+'add'+end + '.wav';
+                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname+'/' + name + '_endpoint/' + start+'add'+end + '.wav';
                 exec(cuttingCommand);
             }
 
