@@ -76,8 +76,8 @@ async function convertCMD(req, isMulitple, index) {
         const { stdout, stderr } = await exec(getAudioHeader);
         let audioConvertStruct = {}, dbQuery = {};
         let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))//Audio cutting result file dirname
-        console.log(req.cookies,'root' in req.cookies)
-        if('root' in req.cookies){
+        console.log(req.cookies, 'root' in req.cookies)
+        if ('root' in req.cookies) {
             console.log('user login')
             audioConvertStruct = {
                 audio_id: null,
@@ -124,38 +124,39 @@ async function endpointDetection(path, name, convert, audio_id) {
     if (audio_id === -1) {
         return;
     }
-    if(!isDirExit(name)){
+    if (!isDirExit(name)) {
         await exec('mkdir -p ' + name + '_endpoint');
-    formatTimes.map((item, index) => {
-        let start = item.split('~')[0], end = item.split('~')[1];
-        const struct = {
-            audio_split_id: null,
-            audio_id: audio_id,
-            path: name + '_endpoint/' + start + 'add' + end + '.wav'
-        }
-        try {
-            query('insert into audio_split set ?', struct)
-        } catch (error) {
-            console.log(error)
-        }
-        if (start && end) {
-            let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
-            if (pre > next) {
-                second = next + 60 - pre;
-            } else {
-                second = next - pre;
+        formatTimes.map((item, index) => {
+            let start = item.split('~')[0], end = item.split('~')[1];
+            const struct = {
+                audio_split_id: null,
+                audio_id: audio_id,
+                path: name + '_endpoint/' + start + 'add' + end + '.wav'
             }
-            if (second === 0) {
-                return;
+            try {
+                query('insert into audio_split set ?', struct)
+            } catch (error) {
+                console.log(error)
             }
-            if (second < 10) {
-                second = '0' + second
+            if (start && end) {
+                let pre = parseInt(start.substring(6, 8)), next = parseInt(end.substring(6, 8)), second = 0;
+                if (pre > next) {
+                    second = next + 60 - pre;
+                } else {
+                    second = next - pre;
+                }
+                if (second === 0) {
+                    return;
+                }
+                if (second < 10) {
+                    second = '0' + second
+                }
+                let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname + '/' + name + '_endpoint/' + start + 'add' + end + '.wav';
+                exec(cuttingCommand);
             }
-            let cuttingCommand = 'ffmpeg -ss ' + start + ' -t 00:00:' + second + ' -i ' + path + ' -ar ' + convert.sampleRate + ' -ac ' + convert.channelCount + ' ' + __dirname+'/' + name + '_endpoint/' + start+'add'+end + '.wav';
-            exec(cuttingCommand);
-        }
 
-    })
+        })
+    }
 }
 app.post('/uploadConvert', upload.single('file'), async function (req, res) {
     const result = await convertCMD(req, false);
