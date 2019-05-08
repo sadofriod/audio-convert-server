@@ -1,5 +1,6 @@
 const express = require('express');
 const util = require('util');
+const cookieParser = require('cookie-parser')
 const bodyParser = require('body-parser');
 const app = express();
 const mysql = require('mysql');
@@ -17,9 +18,10 @@ const urlencodeParser = bodyParser.urlencoded({//数据内容的限制
 });
 const query = util.promisify(connection.query).bind(connection);
 const allowCrossDomain = function (req, res, next) {//允许跨域连接
-    res.header('Access-Control-Allow-Origin', '*');//允许所有IP连接
+    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');//允许所有IP连接
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Credentials', true);
     next();
 }
 const storage = multer.diskStorage({
@@ -35,9 +37,10 @@ const upload = multer({
     limits: { fieldSize: 1024 * 1024 * 1024 },
     storage: storage
 });
+app.use(cookieParser());
 app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));//使用内容限制
-// app.use(express.static(__dirname))
+app.use(express.static('/root/audio_convert/proofreading/build'))
 app.listen(5025, '0.0.0.0', function () {//服务器运行端口设置为5010
     console.log('server start');
 });
@@ -46,6 +49,13 @@ app.post('/signIn', urlencodeParser, async function (req, res) {
     try {
         let result = await query('select * from user where account="' + e.account + '" and password="' + e.password + '"');
         console.log(result);
+        if(result.length){
+            console.log('set cookie');
+            res.cookie('username', result[0].user_name)
+            res.cookie('userID', result[0].user_id)
+            res.cookie('account', result[0].account)
+            res.cookie('root', result[0].user_root)
+        }
         res.json({
             flag: true,
             result: result
@@ -110,7 +120,7 @@ app.post('uploadWords', upload.single('file'), async function (req, res) {
         console.log(error);
     }
 });
-app.post('updateWords',urlencodeParser,function(req,res){
+app.post('updateWords',urlencodeParser,async function(req,res){
     let e = req.body;
     try {
         let result = await query('update words set ?',e);
@@ -127,7 +137,7 @@ app.post('updateWords',urlencodeParser,function(req,res){
         console.log(error);
     }
 });
-app.post('/reviewWords',urlencodeParser,function(req,res){
+app.post('/reviewWords',urlencodeParser,async function(req,res){
     try {
         let result = await query('insert into review set ?',e);
         console.log(result);
