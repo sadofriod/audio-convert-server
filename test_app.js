@@ -4,7 +4,8 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const multer = require('multer');
 const mysql = require('mysql');
-const cookieParser = require('cookie-parser')
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
 const connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
@@ -31,17 +32,29 @@ const urlencodeParser = bodyParser.urlencoded({
     limit: '500mb',
 });
 var allowCrossDomain = function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Credentials', true)
+    res.header('Access-Control-Allow-Credentials', 'true')
     next();
 }
-app.use(allowCrossDomain);
+// app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.static(__dirname + '/audio_static_source'));
 app.use(express.static(__dirname));
+app.enable('trust proxy');
+app.use(session({
+        secret: 'yoursecret',
+        proxy:true,
+        cookie: {
+            path: '/',
+            maxAge: 1000 * 60 * 24 // 24 hours
+        }
+    }
+))
 app.use(cookieParser());
+app.use(allowCrossDomain);
+// app.all('*',allowCrossDomain)
 app.listen(5000, '0.0.0.0', function () {
     console.log('server start');
 });
@@ -171,7 +184,8 @@ app.post('/signIn', urlencodeParser, async function (req, res) {
         res.cookie('username', result[0].user_name)
         res.cookie('user_id', result[0].user_id)
         res.cookie('account', result[0].account)
-        res.cookie('root', result[0].root)
+        res.cookie('root', result[0].root);
+        // console.log(res.headers)
         res.send(JSON.stringify(result));
     } catch (e) {
         console.log(e);
