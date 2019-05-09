@@ -5,6 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const mysql = require('mysql');
 const cookieParser = require('cookie-parser');
+const cors = require('cors');
 const session = require('express-session');
 const connection = mysql.createConnection({
     host: '127.0.0.1',
@@ -31,14 +32,6 @@ const urlencodeParser = bodyParser.urlencoded({
     extended: true,
     limit: '500mb',
 });
-var allowCrossDomain = function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Access-Control-Allow-Credentials', 'true')
-    next();
-}
-// app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.static(__dirname + '/audio_static_source'));
 app.use(express.static(__dirname));
@@ -53,8 +46,9 @@ app.use(session({
     }
 ))
 app.use(cookieParser());
-app.use(allowCrossDomain);
-// app.all('*',allowCrossDomain)
+app.use(cors({
+    credentials:true
+}));
 app.listen(5000, '0.0.0.0', function () {
     console.log('server start');
 });
