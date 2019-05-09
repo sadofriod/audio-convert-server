@@ -20,7 +20,7 @@ const urlencodeParser = bodyParser.urlencoded({//数据内容的限制
 });
 const query = util.promisify(connection.query).bind(connection);
 const allowCrossDomain = function (req, res, next) {//允许跨域连接
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');//允许所有IP连接
+    res.header('Access-Control-Allow-Origin', req.headers.origin);//允许所有IP连接
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.header('Access-Control-Allow-Credentials', true);
@@ -39,7 +39,7 @@ const upload = multer({
     limits: { fieldSize: 1024 * 1024 * 1024 },
     storage: storage
 });
-const wordsPath = '/root/audio_convert/words_static';
+const wordsPath = '/root/audio_convert/words_static/';
 app.use(allowCrossDomain);
 app.use(cookieParser());
 app.use(session({
@@ -87,7 +87,7 @@ app.post('/signIn', urlencodeParser, async function (req, res) {
 app.post('/getHistoryList', urlencodeParser, async function (req, res) {
     let e = req.body;
     try {
-        let result = await query('select * from words where user_id=' + e.userID);
+        let result = await query('select * from words,user where words.user_id=' + e.userID+' and user.user_id='+e.userID);
         console.log(result);
         res.json({
             msg: 'success',
@@ -118,7 +118,7 @@ app.post('/getReviewLog', urlencodeParser, async function (req, res) {
         console.log(error);
     }
 });
-app.post('uploadWords', upload.single('file'), async function (req, res) {
+app.post('/uploadWords', upload.single('file'), async function (req, res) {
     let e = req.body;
     e.path = 'http://112.74.165.209:5025/' + e.username + '_' + now + '.txt';
     try {
@@ -136,7 +136,7 @@ app.post('uploadWords', upload.single('file'), async function (req, res) {
         console.log(error);
     }
 });
-app.post('publishWords', urlencodeParser, async function (req, res) {
+app.post('/publishWords', urlencodeParser, async function (req, res) {
     let e = req.body, now = Date.now(), filePath = wordsPath + e.username + '_' + now + '.txt';
     try {
         e = {
@@ -148,13 +148,21 @@ app.post('publishWords', urlencodeParser, async function (req, res) {
             wait_confirm: 0,
             path: 'http://112.74.165.209:5025/' + e.username + '_' + now + '.txt'
         }
-        fs.writeFileSync(filePath, e.content);
-        let result = query('insert into words set ?',e)
+        fs.writeFileSync(filePath, req.body.content);
+        let result = query('insert into words set ?',e);
+        res.json({
+            msg: 'success',
+            result: e
+        });
     } catch (error) {
-
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
     }
 })
-app.post('updateWords', urlencodeParser, async function (req, res) {
+app.post('/updateWords', urlencodeParser, async function (req, res) {
     let e = req.body;
     try {
         let result = await query('update words set ?', e);
@@ -171,9 +179,11 @@ app.post('updateWords', urlencodeParser, async function (req, res) {
         console.log(error);
     }
 });
-app.post('/reviewWords', urlencodeParser, async function (req, res) {
+app.post('/submitReviewLog', urlencodeParser, async function (req, res) {
+    let e = req.body;
+    e.isRight = 0;
     try {
-        let result = await query('insert into review set ?', e);
+        let result = await query('insert into reviewlog set ?', e);
         console.log(result);
         res.json({
             msg: 'success',
@@ -187,3 +197,36 @@ app.post('/reviewWords', urlencodeParser, async function (req, res) {
         console.log(error);
     }
 });
+app.post('/getReviewTask',urlencodeParser,async function (req,res) {
+    try {
+        let result = await query('select * from user,(select * from words where wait_edit = 0 or wait_confirm = 0) as temp where user.user_id=temp.user_id');
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+});
+
+app.post('/getConfirmTask',urlencodeParser,async function (req,res) {
+    try {
+        let result = await query('select * from words,(select * from reviewlog where isRight=0) as temp,user where temp.words_id=words.words_id and words.user_id=user.user_id');
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+})
