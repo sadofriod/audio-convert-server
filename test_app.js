@@ -246,9 +246,9 @@ app.post('/manualCut', urlencodeParser, async function (req, res) {
 
 });
 app.post('/getAudioList', urlencodeParser, function (req, res) {
-    const result = {};
+    const e = req.body;
     try {
-        const result = query('select * from audio');
+        const result = query('select * from audio user_id='+e.user_id);
         res.json({
             msg: 'success',
             result: result
@@ -258,4 +258,18 @@ app.post('/getAudioList', urlencodeParser, function (req, res) {
         res.send(error);
     }
 
-})
+});
+app.post('/getSplitItem', urlencodeParser, function (req, res) {
+    const e = req.body;
+    try {
+        const result = query('select * from audio_split where audio_id = '+e.audio_id);
+        res.json({
+            msg: 'success',
+            result: result
+        })
+    } catch (error) {
+        console.log(error);
+        res.send(error);
+    }
+
+});
