@@ -122,7 +122,7 @@ app.post('/uploadWords', upload.single('file'), async function (req, res) {
     let e = req.body;
     e.path = 'http://112.74.165.209:5025/' + e.username + '_' + now + '.txt';
     try {
-        let result = await query('insert into words set ?', e);
+        let result = await query('insert into words set ? ', e);
         console.log(result);
         res.json({
             msg: 'success',
@@ -165,7 +165,9 @@ app.post('/publishWords', urlencodeParser, async function (req, res) {
 app.post('/updateWords', urlencodeParser, async function (req, res) {
     let e = req.body;
     try {
-        let result = await query('update words set ?', e);
+    let id = req.body.words_id;
+    delete e.words_id;
+    let result = await query('update words set ? where words_id='+id, e);
         console.log(result);
         res.json({
             msg: 'success',
@@ -216,7 +218,7 @@ app.post('/getReviewTask',urlencodeParser,async function (req,res) {
 
 app.post('/getConfirmTask',urlencodeParser,async function (req,res) {
     try {
-        let result = await query('select * from words,(select * from reviewlog where isRight=0) as temp,user where temp.words_id=words.words_id and words.user_id=user.user_id');
+        let result = await query('select * from words,(select * from reviewlog where isRight=0 or isRight=-1) as temp,user where temp.words_id=words.words_id and words.user_id=user.user_id');
         console.log(result);
         res.json({
             msg: 'success',
