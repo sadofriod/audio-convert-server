@@ -28,7 +28,7 @@ const allowCrossDomain = function (req, res, next) {//允许跨域连接
 }
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, __dirname + '/static');
+        cb(null, __dirname + '/static_words');
     },
     filename: function (req, file, cb) {
         cb(null, file.originalname);
@@ -51,7 +51,8 @@ app.use(session({
 }));
 app.use(bodyParser.json({ limit: '50mb' }));//使用内容限制
 app.use(express.static('/root/audio_convert/proofreading/build'))
-app.use(express.static(wordsPath))
+app.use(express.static(wordsPath));
+app.use(express.static(__dirname));
 app.listen(5025, '0.0.0.0', function () {//服务器运行端口设置为5010
     console.log('server start');
 });
@@ -84,6 +85,40 @@ app.post('/signIn', urlencodeParser, async function (req, res) {
         console.log(error)
     }
 });
+app.post('/getUser',urlencodeParser, async function (req,res) {
+    try {
+        let result = await query('select * from user ');
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+});
+app.post('/updateUser',urlencodeParser, async function (req,res) {
+    let e = req.body,id=req.body.user_id;
+    delete e.user_id
+    try {
+        let result = await query('update user set ? where user_id='+id,e);
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+});
 app.post('/getHistoryList', urlencodeParser, async function (req, res) {
     let e = req.body;
     try {
@@ -101,6 +136,22 @@ app.post('/getHistoryList', urlencodeParser, async function (req, res) {
         console.log(error);
     }
 });
+app.post('/getWords',urlencodeParser,async function (req,res) {
+    try {
+        let result = await query('select * from words');
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+})
 app.post('/getReviewLog', urlencodeParser, async function (req, res) {
     let e = req.body;
     try {
@@ -120,13 +171,16 @@ app.post('/getReviewLog', urlencodeParser, async function (req, res) {
 });
 app.post('/uploadWords', upload.single('file'), async function (req, res) {
     let e = req.body;
-    e.path = 'http://112.74.165.209:5025/' + e.username + '_' + now + '.txt';
+    e.path = 'http://112.74.165.209:5025/static_words/' + req.file.originalname;
+    console.log(req.file);
+    
+    e.words_name = e.user_id+'_'+e.upload_time;
     try {
         let result = await query('insert into words set ? ', e);
         console.log(result);
         res.json({
             msg: 'success',
-            result: result
+            result: e.path
         });
     } catch (error) {
         res.json({
@@ -168,6 +222,40 @@ app.post('/updateWords', urlencodeParser, async function (req, res) {
     let id = req.body.words_id;
     delete e.words_id;
     let result = await query('update words set ? where words_id='+id, e);
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+});
+app.post('/insertUser', urlencodeParser, async function (req, res) {
+    let e = req.body;
+    try {
+    let result = await query('insert into user set ?', e);
+        console.log(result);
+        res.json({
+            msg: 'success',
+            result: result
+        });
+    } catch (error) {
+        res.json({
+            msg: 'fail',
+            result: error
+        });
+        console.log(error);
+    }
+});
+app.post('/deleteUser', urlencodeParser, async function (req, res) {
+    let e = req.body;
+    try {
+    let result = await query('delete from user where user_id ='+ e.user_id);
         console.log(result);
         res.json({
             msg: 'success',

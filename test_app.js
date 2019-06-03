@@ -32,24 +32,18 @@ const urlencodeParser = bodyParser.urlencoded({
     extended: true,
     limit: '500mb',
 });
+const allowCrossDomain = function (req, res, next) {//允许跨域连接
+    res.header('Access-Control-Allow-Origin', req.headers.origin);//允许所有IP连接
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+}
+app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.static(__dirname + '/audio_static_source'));
 app.use(express.static(__dirname));
-app.enable('trust proxy');
-app.use(session({
-        secret: 'yoursecret',
-        proxy:true,
-        cookie: {
-            path: '/',
-            maxAge: 1000 * 60 * 24 // 24 hours
-        }
-    }
-))
 app.use(cookieParser());
-app.use(cors({
-    credentials:true
-}));
-app.listen(5000, '0.0.0.0', function () {
+app.listen(5050, '0.0.0.0', function () {
     console.log('server start');
 });
 app.get('/', function (req, res) {
@@ -132,7 +126,7 @@ async function endpointDetection(path, name, convert, audio_id) {
         return;
     }
     if (!isDirExit(name)) {
-        await exec('mkdir -p ' + name + '_endpoint');
+        await exec('mkdir -p ' + __dirname + '/' + name + '_endpoint');
         formatTimes.map((item, index) => {
             let start = item.split('~')[0], end = item.split('~')[1];
             const struct = {
@@ -245,10 +239,10 @@ app.post('/manualCut', urlencodeParser, async function (req, res) {
     }
 
 });
-app.post('/getAudioList', urlencodeParser, function (req, res) {
+app.post('/getAudioList', urlencodeParser, async function (req, res) {
     const e = req.body;
     try {
-        const result = query('select * from audio user_id='+e.user_id);
+        const result = await query('select * from audio where user_id='+e.user_id);
         res.json({
             msg: 'success',
             result: result
@@ -259,10 +253,10 @@ app.post('/getAudioList', urlencodeParser, function (req, res) {
     }
 
 });
-app.post('/getSplitItem', urlencodeParser, function (req, res) {
+app.post('/getSplitItem', urlencodeParser, async function (req, res) {
     const e = req.body;
     try {
-        const result = query('select * from audio_split where audio_id = '+e.audio_id);
+        const result = await query('select * from audio_split where audio_id = '+e.audio_id);
         res.json({
             msg: 'success',
             result: result
