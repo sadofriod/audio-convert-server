@@ -4,9 +4,6 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 const multer = require('multer');
 const mysql = require('mysql');
-const cookieParser = require('cookie-parser');
-const cors = require('cors');
-const session = require('express-session');
 const connection = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
@@ -42,7 +39,6 @@ app.use(allowCrossDomain);
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(express.static(__dirname + '/audio_static_source'));
 app.use(express.static(__dirname));
-app.use(cookieParser());
 app.listen(5050, '0.0.0.0', function () {
     console.log('server start');
 });
@@ -77,30 +73,22 @@ async function convertCMD(req, isMulitple, index) {
         const { stdout, stderr } = await exec(getAudioHeader);
         let audioConvertStruct = {}, dbQuery = {};
         let audioSplitSaveDirname = filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.'))//Audio cutting result file dirname
-        console.log(req.cookies, 'root' in req.cookies)
-        if ('root' in req.cookies) {
-            console.log('user login')
-            audioConvertStruct = {
-                audio_id: null,
-                berfore_convert_path: filePath,
-                after_convert_path: convert.outputPath,
-                user_id: req.cookies.user_id,
-                audio_name: filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')),
-                descripiton: JSON.stringify(param)
-            }
-            try {
-                dbQuery = await query('insert into audio set ?', audioConvertStruct);
-                audioSplitSaveDirname = req.cookies.account + audioSplitSaveDirname;
-                console.log(dbQuery);
-            } catch (error) {
-                console.log(error);
-                audioConvertStruct = { msg: 'sql failur' };
-                dbQuery.insertId = -1;
-            }
-        } else {//当为游客时，音频存储
-            audioConvertStruct = param;
-            dbQuery.insertId = 0;
-            audioSplitSaveDirname = audioSplitSaveDirname + '_temp_' + Date.now();
+        audioConvertStruct = {
+            audio_id: null,
+            berfore_convert_path: filePath,
+            after_convert_path: convert.outputPath,
+            user_id: 1,
+            audio_name: filePath.substring(filePath.lastIndexOf('/'), filePath.lastIndexOf('.')),
+            descripiton: JSON.stringify(param),
+            upload_time: Date.now()+''
+        }
+        try {
+            dbQuery = await query('insert into audio set ?', audioConvertStruct);
+            console.log(dbQuery);
+        } catch (error) {
+            console.log(error);
+            audioConvertStruct = { msg: 'sql failur' };
+            dbQuery.insertId = -1;
         }
         if (!isMulitple) {
             await endpointDetection(convert.outputPath, audioSplitSaveDirname, convert, dbQuery.insertId);
@@ -265,5 +253,18 @@ app.post('/getSplitItem', urlencodeParser, async function (req, res) {
         console.log(error);
         res.send(error);
     }
-
 });
+app.post('/getAllData',urlencodeParser,async function(req,res){
+    try {
+        const audio = await query('select * from audio');
+        const split = await query('select * from audio_split,audio where audio.audio_id=audio_split.audio_id');
+        res.json({
+            msg: 'success',
+            split: split,
+            audio:audio
+        })
+    } catch (error) {
+        console.log(error);
+        res.send(error);
+    }
+})
